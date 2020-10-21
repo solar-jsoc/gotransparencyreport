@@ -1,6 +1,6 @@
 # gotransparencyreport
 [![Tests](https://github.com/solar-jsoc/gotransparencyreport/workflows/Tests/badge.svg)](https://github.com/solar-jsoc/gotransparencyreport/actions)
-[![Coverage Status](https://coveralls.io/repos/github/solar-jsoc/gotransparencyreport/badge.svg?branch=master)](https://coveralls.io/github/solar-jsoc/gotransparencyreport?branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/solar-jsoc/gotransparencyreport/badge.svg?branch=main)](https://coveralls.io/github/solar-jsoc/gotransparencyreport?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/solar-jsoc/gotransparencyreport)](https://goreportcard.com/report/github.com/solar-jsoc/gotransparencyreport)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/solar-jsoc/gotransparencyreport)](https://pkg.go.dev/github.com/solar-jsoc/gotransparencyreport)
 
