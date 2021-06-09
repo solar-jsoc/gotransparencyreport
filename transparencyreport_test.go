@@ -2,6 +2,7 @@ package transparencyreport
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -71,4 +72,16 @@ func TestCertsResponseUnmarshalJSON(t *testing.T) {
 	require.Equal(t, 10, len(response.Certs))
 	require.Equal(t, "J2RTFJ1CV6XFaVJXgAhwdWhCSytSPx5Hm+dv6C3RgPo\u003d", response.Certs[0].Hash)
 	require.Equal(t, "79lm2oVushsShS9ZtJlnvBlRj8hvM+TeR9eHPo+T7dU\u003d", response.Certs[9].Hash)
+
+	// Thu Aug 02 2018 14:28:05 GMT+0000
+	date := time.Date(2018, time.August, 02, 14, 28, 05, 00, time.UTC)
+	if !response.Certs[9].NotBefore.UTC().Equal(date) {
+		t.Errorf("%s != %s", response.Certs[9].NotBefore.UTC(), date)
+	}
+
+	// Wed Oct 31 2018 14:28:05 GMT+0000
+	date = time.Date(2018, time.October, 31, 14, 28, 05, 00, time.UTC)
+	if !response.Certs[9].NotAfter.UTC().Equal(date) {
+		t.Errorf("%s != %s", response.Certs[9].NotAfter.UTC(), date)
+	}
 }

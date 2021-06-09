@@ -48,12 +48,23 @@ func (c *Cert) UnmarshalJSON(data []byte) error {
 }
 
 type certInfo struct {
-	Hash string
+	Hash      string
+	NotBefore time.Time
+	NotAfter  time.Time
 }
 
 func (c *certInfo) UnmarshalJSON(data []byte) error {
-	proxy := []interface{}{nil, nil, nil, nil, nil, &c.Hash, nil, nil, nil}
-	return json.Unmarshal(data, &proxy)
+	var notBefore, notAfter int64
+	proxy := []interface{}{nil, nil, nil, &notBefore, &notAfter, &c.Hash, nil, nil, nil}
+
+	if err := json.Unmarshal(data, &proxy); err != nil {
+		return err
+	}
+
+	c.NotBefore = time.Unix(notBefore/1000, 0)
+	c.NotAfter = time.Unix(notAfter/1000, 0)
+
+	return nil
 }
 
 type certsResponse struct {
@@ -89,7 +100,6 @@ func Search(domain string, includeExpired, includeSubdomains bool) ([]Cert, erro
 	}
 	body, err := get("/certsearch", url.Values{
 		"domain":             {domain},
-		"include_expired":    {fmt.Sprintf("%t", includeExpired)},
 		"include_subdomains": {fmt.Sprintf("%t", includeSubdomains)},
 	})
 	if err != nil {
@@ -102,14 +112,36 @@ func Search(domain string, includeExpired, includeSubdomains bool) ([]Cert, erro
 		return nil, err
 	}
 
-	certificates := []Cert{}
+	var certificates []Cert
 	for {
+		if !includeExpired {
+			hasActiveCertificate := false
+
+			for _, crt := range response.Certs {
+				if crt.NotAfter.After(time.Now()) {
+					hasActiveCertificate = true
+					break
+				}
+			}
+
+			if !hasActiveCertificate {
+				// All certificates encountered on this page are expired
+				// and therefore certificates from other pages will be expired too
+				// therefore stop here to prevent fetching of other pages full
+				// of expired certificates for nothing.
+				break
+			}
+		}
+
 		for _, crt := range response.Certs {
 			updCrt, err := getCert(crt.Hash)
 			if err != nil {
 				return nil, fmt.Errorf("Parse certificate by hash error: %w", err)
 			}
-			certificates = append(certificates, updCrt)
+
+			if includeExpired || crt.NotAfter.After(time.Now()) {
+				certificates = append(certificates, updCrt)
+			}
 		}
 
 		if response.NextPageID == "" {
