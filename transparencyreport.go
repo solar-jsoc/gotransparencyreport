@@ -107,40 +107,16 @@ func Search(domain string, includeExpired, includeSubdomains bool) ([]Cert, erro
 	}
 
 	response := certsResponse{}
-	err = unmarshalJSON(body, &response)
-	if err != nil {
+	if err := unmarshalJSON(body, &response); err != nil {
 		return nil, err
 	}
 
-	var certificates []Cert
+	// First of all, browse all pages and gather certificate information
+	var certInfos []certInfo
 	for {
-		if !includeExpired {
-			hasActiveCertificate := false
-
-			for _, crt := range response.Certs {
-				if crt.NotAfter.After(time.Now()) {
-					hasActiveCertificate = true
-					break
-				}
-			}
-
-			if !hasActiveCertificate {
-				// All certificates encountered on this page are expired
-				// and therefore certificates from other pages will be expired too
-				// therefore stop here to prevent fetching of other pages full
-				// of expired certificates for nothing.
-				break
-			}
-		}
-
 		for _, crt := range response.Certs {
-			updCrt, err := getCert(crt.Hash)
-			if err != nil {
-				return nil, fmt.Errorf("Parse certificate by hash error: %w", err)
-			}
-
 			if includeExpired || crt.NotAfter.After(time.Now()) {
-				certificates = append(certificates, updCrt)
+				certInfos = append(certInfos, crt)
 			}
 		}
 
@@ -159,6 +135,18 @@ func Search(domain string, includeExpired, includeSubdomains bool) ([]Cert, erro
 			return nil, err
 		}
 	}
+
+	// Finally fetch certificates we are interested in
+	var certificates []Cert
+	for _, certInfo := range certInfos {
+		crt, err := getCert(certInfo.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("Parse certificate by hash error: %w", err)
+		}
+
+		certificates = append(certificates, crt)
+	}
+
 	return certificates, nil
 }
 
