@@ -48,12 +48,23 @@ func (c *Cert) UnmarshalJSON(data []byte) error {
 }
 
 type certInfo struct {
-	Hash string
+	Hash      string
+	NotBefore time.Time
+	NotAfter  time.Time
 }
 
 func (c *certInfo) UnmarshalJSON(data []byte) error {
-	proxy := []interface{}{nil, nil, nil, nil, nil, &c.Hash, nil, nil, nil}
-	return json.Unmarshal(data, &proxy)
+	var notBefore, notAfter int64
+	proxy := []interface{}{nil, nil, nil, &notBefore, &notAfter, &c.Hash, nil, nil, nil}
+
+	if err := json.Unmarshal(data, &proxy); err != nil {
+		return err
+	}
+
+	c.NotBefore = time.Unix(notBefore/1000, 0)
+	c.NotAfter = time.Unix(notAfter/1000, 0)
+
+	return nil
 }
 
 type certsResponse struct {
@@ -89,7 +100,6 @@ func Search(domain string, includeExpired, includeSubdomains bool) ([]Cert, erro
 	}
 	body, err := get("/certsearch", url.Values{
 		"domain":             {domain},
-		"include_expired":    {fmt.Sprintf("%t", includeExpired)},
 		"include_subdomains": {fmt.Sprintf("%t", includeSubdomains)},
 	})
 	if err != nil {
@@ -97,19 +107,17 @@ func Search(domain string, includeExpired, includeSubdomains bool) ([]Cert, erro
 	}
 
 	response := certsResponse{}
-	err = unmarshalJSON(body, &response)
-	if err != nil {
+	if err := unmarshalJSON(body, &response); err != nil {
 		return nil, err
 	}
 
-	certificates := []Cert{}
+	// First of all, browse all pages and gather certificate information
+	var certInfos []certInfo
 	for {
 		for _, crt := range response.Certs {
-			updCrt, err := getCert(crt.Hash)
-			if err != nil {
-				return nil, fmt.Errorf("Parse certificate by hash error: %w", err)
+			if includeExpired || crt.NotAfter.After(time.Now()) {
+				certInfos = append(certInfos, crt)
 			}
-			certificates = append(certificates, updCrt)
 		}
 
 		if response.NextPageID == "" {
@@ -127,6 +135,18 @@ func Search(domain string, includeExpired, includeSubdomains bool) ([]Cert, erro
 			return nil, err
 		}
 	}
+
+	// Finally fetch certificates we are interested in
+	var certificates []Cert
+	for _, certInfo := range certInfos {
+		crt, err := getCert(certInfo.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("Parse certificate by hash error: %w", err)
+		}
+
+		certificates = append(certificates, crt)
+	}
+
 	return certificates, nil
 }
 
